@@ -1229,8 +1229,6 @@ function TestPage({ ctx }) {
     setActiveTest,
   ]);
 
-  if (!activeTest) return null;
-
   const { questions, answers, marked } = activeTest;
   const q = questions[current];
   const totalQ = questions.length;
@@ -1280,12 +1278,14 @@ function TestPage({ ctx }) {
       setTimeLeft((l) => (l <= 1 ? 0 : l - 1));
     }, 1000);
     return () => clearInterval(t);
-  }, []);
+  }, [activeTest]);
 
   // Auto-submit when time hits zero
   useEffect(() => {
     if (timeLeft === 0) submitTest();
   }, [timeLeft]);
+
+  if (!activeTest) return null;
 
   const answered = Object.keys(answers).length;
   const progress = ((current + 1) / totalQ) * 100;
