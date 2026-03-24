@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, use } from "react";
+import { useState, useEffect, useCallback, useMemo, use, useRef } from "react";
 import * as api from "./services/api";
 
 // ─── MOCK DATA ────────────────────────────────────────────────────────────────
@@ -255,16 +255,16 @@ export default function App() {
         {renderPage()}
       </div>
       <Toast toasts={toasts} />
-{showBugReport && <BugReportModal ctx={ctx} />}
-{/* Floating bug report button — only for logged in non-admin users */}
-{user && !admin && page !== "test" && (
-  <button
-    onClick={() => setShowBugReport(true)}
-    className="fixed bottom-6 right-6 z-40 bg-orange-600 hover:bg-orange-700 text-white rounded-full px-4 py-2.5 text-sm font-bold shadow-lg flex items-center gap-2 transition-all hover:scale-105"
-  >
-    🐛 Report Bug
-  </button>
-)}
+      {showBugReport && <BugReportModal ctx={ctx} />}
+      {/* Floating bug report button — only for logged in non-admin users */}
+      {user && !admin && page !== "test" && (
+        <button
+          onClick={() => setShowBugReport(true)}
+          className="fixed bottom-6 right-6 z-40 bg-orange-600 hover:bg-orange-700 text-white rounded-full px-4 py-2.5 text-sm font-bold shadow-lg flex items-center gap-2 transition-all hover:scale-105"
+        >
+          🐛 Report Bug
+        </button>
+      )}
     </div>
   );
 }
@@ -324,11 +324,11 @@ function Navbar({ ctx }) {
                 {user.username}
               </span>
               <button
-  onClick={() => ctx.setShowBugReport(true)}
-  className={`px-3 py-1.5 rounded-lg text-sm font-medium ${dark ? "bg-orange-600/20 text-orange-400 hover:bg-orange-600/30" : "bg-orange-50 text-orange-600 hover:bg-orange-100"}`}
->
-  🐛 Bug
-</button>
+                onClick={() => ctx.setShowBugReport(true)}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium ${dark ? "bg-orange-600/20 text-orange-400 hover:bg-orange-600/30" : "bg-orange-50 text-orange-600 hover:bg-orange-100"}`}
+              >
+                🐛 Bug
+              </button>
               <button
                 onClick={() => {
                   setUser(null);
@@ -793,7 +793,7 @@ function RegisterPage({ ctx }) {
       const res = await api.register(form.username, form.email, form.password);
       if (res.token) {
         localStorage.setItem("token", res.token);
-        setUser({ username: res.username, role: res.role ,userId: res.userId });
+        setUser({ username: res.username, role: res.role, userId: res.userId });
         toast("Account created! Welcome " + res.username + " 🎉");
         nav("home");
       } else {
@@ -886,64 +886,69 @@ function ConfigureTestPage({ ctx }) {
   ];
 
   const startTest = () => {
-  if (!user) {
-    toast("Please login to start a test", "error");
-    nav("login");
-    return;
-  }
-  let filtered = questions;
-  if (config.subject !== "All")
-    filtered = filtered.filter((q) => q.subject === config.subject);
-  if (config.topic !== "All")
-    filtered = filtered.filter((q) => q.topic === config.topic);
-  if (config.year !== "All")
-    filtered = filtered.filter((q) => q.year === parseInt(config.year));
-  if (config.difficulty !== "All")
-    filtered = filtered.filter((q) => q.difficulty === config.difficulty);
-  if (config.solveTime !== "All")
-    filtered = filtered.filter(
-      (q) => q.expectedSolveTime === parseInt(config.solveTime),
-    );
-  if (filtered.length === 0) {
-    toast("No questions match your filters. Try different criteria.", "error");
-    return;
-  }
+    if (!user) {
+      toast("Please login to start a test", "error");
+      nav("login");
+      return;
+    }
+    let filtered = questions;
+    if (config.subject !== "All")
+      filtered = filtered.filter((q) => q.subject === config.subject);
+    if (config.topic !== "All")
+      filtered = filtered.filter((q) => q.topic === config.topic);
+    if (config.year !== "All")
+      filtered = filtered.filter((q) => q.year === parseInt(config.year));
+    if (config.difficulty !== "All")
+      filtered = filtered.filter((q) => q.difficulty === config.difficulty);
+    if (config.solveTime !== "All")
+      filtered = filtered.filter(
+        (q) => q.expectedSolveTime === parseInt(config.solveTime),
+      );
+    if (filtered.length === 0) {
+      toast(
+        "No questions match your filters. Try different criteria.",
+        "error",
+      );
+      return;
+    }
 
-  // Step 1: Always shuffle the entire pool first (Fisher-Yates)
-  let pool = [...filtered];
-  for (let i = pool.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [pool[i], pool[j]] = [pool[j], pool[i]];
-  }
+    // Step 1: Always shuffle the entire pool first (Fisher-Yates)
+    let pool = [...filtered];
+    for (let i = pool.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [pool[i], pool[j]] = [pool[j], pool[i]];
+    }
 
-  // Step 2: Slice BEFORE sorting — different questions every time
-  const sliced = pool.slice(0, Math.min(config.count, pool.length));
+    // Step 2: Slice BEFORE sorting — different questions every time
+    const sliced = pool.slice(0, Math.min(config.count, pool.length));
 
-  // Step 3: Sort the sliced subset by mode
-  let selected;
-  if (config.mode === "Random Shuffle") {
-    selected = sliced;
-  } else if (config.mode === "Year-wise") {
-    selected = sliced.sort((a, b) => a.year - b.year);
-  } else if (config.mode === "Topic-wise") {
-    selected = sliced.sort((a, b) => a.topic.localeCompare(b.topic));
-  } else if (config.mode === "Difficulty-wise") {
-    const order = { Easy: 1, Medium: 2, Hard: 3 };
-    selected = sliced.sort((a, b) => order[a.difficulty] - order[b.difficulty]);
-  } else {
-    selected = sliced;
-  }
+    // Step 3: Sort the sliced subset by mode
+    let selected;
+    if (config.mode === "Random Shuffle") {
+      selected = sliced;
+    } else if (config.mode === "Year-wise") {
+      selected = sliced.sort((a, b) => a.year - b.year);
+    } else if (config.mode === "Topic-wise") {
+      selected = sliced.sort((a, b) => a.topic.localeCompare(b.topic));
+    } else if (config.mode === "Difficulty-wise") {
+      const order = { Easy: 1, Medium: 2, Hard: 3 };
+      selected = sliced.sort(
+        (a, b) => order[a.difficulty] - order[b.difficulty],
+      );
+    } else {
+      selected = sliced;
+    }
 
-  setActiveTest({
-    questions: selected,
-    answers: {},
-    marked: new Set(),
-    config,
-    startTime: Date.now(),
-    timeLimit: config.count * 90,
-  });
-  nav("test");
-};
+    setActiveTest({
+      questions: selected,
+      answers: {},
+      marked: new Set(),
+      config,
+      startTime: Date.now(),
+      timeLimit: config.count * 90,
+    });
+    nav("test");
+  };
 
   const BtnGroup = ({ label, options, field }) => (
     <div>
@@ -1161,26 +1166,68 @@ function TestPage({ ctx }) {
   const [hint, setHint] = useState(null);
   const [hintLoading, setHintLoading] = useState(false);
   const [timeLeft, setTimeLeft] = useState(activeTest?.timeLimit || 1800);
-
+  const activeTestRef = useRef(activeTest);
   useEffect(() => {
-    if (!activeTest) {
-      nav("home");
-      return;
+    activeTestRef.current = activeTest;
+  }, [activeTest]);
+
+  const submitTest = useCallback(() => {
+    const currentTest = activeTestRef.current;
+    if (!currentTest) return;
+
+    const timeTaken = currentTest.timeLimit - timeLeft;
+    const { questions, answers } = currentTest;
+
+    if (user?.userId) {
+      api
+        .submitTest({
+          userId: user.userId,
+          questionIds: questions.map((q) => q.id),
+          answers,
+          timeTaken,
+        })
+        .catch((err) => {
+          console.error("Failed to submit", err);
+          toast("Could not sync with server", "error");
+        });
     }
-    const t = setInterval(
-      () =>
-        setTimeLeft((l) => {
-          if (l <= 1) {
-            clearInterval(t);
-            submitTest();
-            return 0;
-          }
-          return l - 1;
-        }),
-      1000,
-    );
-    return () => clearInterval(t);
-  }, []);
+
+    let correct = 0,
+      incorrect = 0,
+      skipped = 0;
+    questions.forEach((q) => {
+      const a = answers[q.id];
+      if (!a) skipped++;
+      else if (a === q.correctAnswer) correct++;
+      else incorrect++;
+    });
+
+    const score = correct * 3 - incorrect;
+    const result = {
+      questions,
+      answers,
+      correct,
+      incorrect,
+      skipped,
+      score,
+      timeTaken,
+      config: currentTest.config,
+      id: Date.now(),
+    };
+
+    setCurrentResult(result);
+    setTestHistory((h) => [...h, result]);
+    setActiveTest(null);
+    nav("results");
+  }, [
+    timeLeft,
+    user,
+    toast,
+    nav,
+    setCurrentResult,
+    setTestHistory,
+    setActiveTest,
+  ]);
 
   if (!activeTest) return null;
 
@@ -1223,48 +1270,22 @@ function TestPage({ ctx }) {
     setHintLoading(false);
   };
 
-  const submitTest = () => {
-    const timeTaken = activeTest.timeLimit - timeLeft;
-    // Save to backend if user logged in
-    if (user?.userId) {
-      api
-        .submitTest({
-          userId: user.userId,
-          questionIds: questions.map((q) => q.id),
-          answers: answers,
-          timeTaken: timeTaken,
-        })
-        .catch((err) => {
-          console.error("Failed to submit test to backend", err);
-          toast("Test saved locally but could not sync with server", "error");
-        });
+  // Timer — only counts down
+  useEffect(() => {
+    if (!activeTest) {
+      nav("home");
+      return;
     }
-    let correct = 0,
-      incorrect = 0,
-      skipped = 0;
-    questions.forEach((q) => {
-      const a = answers[q.id];
-      if (!a) skipped++;
-      else if (a === q.correctAnswer) correct++;
-      else incorrect++;
-    });
-    const score = correct * 3 - incorrect;
-    const result = {
-      questions,
-      answers,
-      correct,
-      incorrect,
-      skipped,
-      score,
-      timeTaken,
-      config: activeTest.config,
-      id: Date.now(),
-    };
-    setCurrentResult(result);
-    setTestHistory((h) => [...h, result]);
-    setActiveTest(null);
-    nav("results");
-  };
+    const t = setInterval(() => {
+      setTimeLeft((l) => (l <= 1 ? 0 : l - 1));
+    }, 1000);
+    return () => clearInterval(t);
+  }, []);
+
+  // Auto-submit when time hits zero
+  useEffect(() => {
+    if (timeLeft === 0) submitTest();
+  }, [timeLeft]);
 
   const answered = Object.keys(answers).length;
   const progress = ((current + 1) / totalQ) * 100;
@@ -4650,25 +4671,41 @@ function BugReportModal({ ctx }) {
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-      <div className={`border rounded-2xl p-6 w-full max-w-md ${dark ? "bg-gray-900 border-gray-700" : "bg-white border-gray-200"}`}>
+      <div
+        className={`border rounded-2xl p-6 w-full max-w-md ${dark ? "bg-gray-900 border-gray-700" : "bg-white border-gray-200"}`}
+      >
         <h3 className="font-black text-lg mb-1">🐛 Report a Bug</h3>
-        <p className={`text-sm mb-4 ${dark ? "text-gray-400" : "text-gray-500"}`}>
+        <p
+          className={`text-sm mb-4 ${dark ? "text-gray-400" : "text-gray-500"}`}
+        >
           Found something broken? Let us know and we'll fix it.
         </p>
         <div className="flex flex-col gap-3">
           <div>
-            <label className={`text-xs font-semibold mb-2 block ${dark ? "text-gray-300" : "text-gray-600"}`}>
+            <label
+              className={`text-xs font-semibold mb-2 block ${dark ? "text-gray-300" : "text-gray-600"}`}
+            >
               Category *
             </label>
             <div className="flex flex-wrap gap-2">
-              {["UI Bug", "Wrong Data", "App Crash", "Feature Not Working", "Other"].map((c) => (
+              {[
+                "UI Bug",
+                "Wrong Data",
+                "App Crash",
+                "Feature Not Working",
+                "Other",
+              ].map((c) => (
                 <button
                   key={c}
                   onClick={() => setForm((f) => ({ ...f, category: c }))}
                   className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
                     form.category === c
-                      ? dark ? "bg-orange-600/20 border-orange-600 text-orange-300" : "bg-orange-50 border-orange-500 text-orange-700"
-                      : dark ? "border-gray-700 text-gray-300 hover:border-gray-600" : "border-gray-300 text-gray-700 hover:border-gray-400"
+                      ? dark
+                        ? "bg-orange-600/20 border-orange-600 text-orange-300"
+                        : "bg-orange-50 border-orange-500 text-orange-700"
+                      : dark
+                        ? "border-gray-700 text-gray-300 hover:border-gray-600"
+                        : "border-gray-300 text-gray-700 hover:border-gray-400"
                   }`}
                 >
                   {c}
@@ -4677,7 +4714,9 @@ function BugReportModal({ ctx }) {
             </div>
           </div>
           <div>
-            <label className={`text-xs font-semibold mb-1.5 block ${dark ? "text-gray-300" : "text-gray-600"}`}>
+            <label
+              className={`text-xs font-semibold mb-1.5 block ${dark ? "text-gray-300" : "text-gray-600"}`}
+            >
               Description *
             </label>
             <textarea
@@ -4685,17 +4724,27 @@ function BugReportModal({ ctx }) {
               className={`w-full border rounded-xl px-3 py-2 text-sm outline-none resize-none ${inp}`}
               placeholder="Describe the bug in detail... What happened? What did you expect?"
               value={form.description}
-              onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, description: e.target.value }))
+              }
             />
           </div>
           <p className={`text-xs ${dark ? "text-gray-500" : "text-gray-400"}`}>
             📍 Page: <span className="font-medium">{page}</span>
-            {user && <> · 👤 <span className="font-medium">{user.username}</span></>}
+            {user && (
+              <>
+                {" "}
+                · 👤 <span className="font-medium">{user.username}</span>
+              </>
+            )}
           </p>
         </div>
         <div className="flex gap-3 mt-4">
           <button
-            onClick={() => { setShowBugReport(false); setForm({ category: "UI Bug", description: "" }); }}
+            onClick={() => {
+              setShowBugReport(false);
+              setForm({ category: "UI Bug", description: "" });
+            }}
             className={`flex-1 py-2.5 border rounded-xl text-sm font-semibold ${dark ? "border-gray-700 hover:bg-gray-800" : "border-gray-300 hover:bg-gray-100"}`}
           >
             Cancel
@@ -4721,24 +4770,31 @@ function AdminBugReportsPage({ ctx }) {
 
   useEffect(() => {
     if (!admin) return;
-    api.getBugReports()
-      .then((data) => { if (Array.isArray(data)) setReports(data); })
+    api
+      .getBugReports()
+      .then((data) => {
+        if (Array.isArray(data)) setReports(data);
+      })
       .catch(() => toast("Failed to load bug reports", "error"))
       .finally(() => setLoading(false));
   }, [admin]);
 
   if (!admin) return <AuthWall ctx={ctx} msg="Admin access required" />;
 
-  const card = dark ? "bg-gray-900 border-gray-800" : "bg-white border-gray-200";
+  const card = dark
+    ? "bg-gray-900 border-gray-800"
+    : "bg-white border-gray-200";
   const openCount = reports.filter((r) => !r.resolved).length;
   const filtered = reports.filter((r) =>
-    filter === "all" ? true : filter === "open" ? !r.resolved : r.resolved
+    filter === "all" ? true : filter === "open" ? !r.resolved : r.resolved,
   );
 
   const handleResolve = async (id) => {
     try {
       await api.resolveBugReport(id);
-      setReports((prev) => prev.map((r) => r.id === id ? { ...r, resolved: true } : r));
+      setReports((prev) =>
+        prev.map((r) => (r.id === id ? { ...r, resolved: true } : r)),
+      );
       toast("Marked as resolved ✓");
     } catch {
       toast("Action failed", "error");
@@ -4746,10 +4802,21 @@ function AdminBugReportsPage({ ctx }) {
   };
 
   const categoryColor = (cat) => {
-    if (cat === "App Crash") return dark ? "bg-red-900/30 text-red-400 border-red-800" : "bg-red-50 text-red-700 border-red-200";
-    if (cat === "Wrong Data") return dark ? "bg-yellow-900/30 text-yellow-400 border-yellow-800" : "bg-yellow-50 text-yellow-700 border-yellow-200";
-    if (cat === "UI Bug") return dark ? "bg-blue-900/30 text-blue-400 border-blue-800" : "bg-blue-50 text-blue-700 border-blue-200";
-    return dark ? "bg-gray-800 text-gray-400 border-gray-700" : "bg-gray-100 text-gray-600 border-gray-200";
+    if (cat === "App Crash")
+      return dark
+        ? "bg-red-900/30 text-red-400 border-red-800"
+        : "bg-red-50 text-red-700 border-red-200";
+    if (cat === "Wrong Data")
+      return dark
+        ? "bg-yellow-900/30 text-yellow-400 border-yellow-800"
+        : "bg-yellow-50 text-yellow-700 border-yellow-200";
+    if (cat === "UI Bug")
+      return dark
+        ? "bg-blue-900/30 text-blue-400 border-blue-800"
+        : "bg-blue-50 text-blue-700 border-blue-200";
+    return dark
+      ? "bg-gray-800 text-gray-400 border-gray-700"
+      : "bg-gray-100 text-gray-600 border-gray-200";
   };
 
   return (
@@ -4757,19 +4824,29 @@ function AdminBugReportsPage({ ctx }) {
       <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-black">Bug Reports 🐛</h1>
-          <p className={`text-sm mt-0.5 ${dark ? "text-gray-400" : "text-gray-500"}`}>
+          <p
+            className={`text-sm mt-0.5 ${dark ? "text-gray-400" : "text-gray-500"}`}
+          >
             {openCount} open bug{openCount !== 1 ? "s" : ""} need attention
           </p>
         </div>
         <div className="flex gap-2">
-          {[["open", "Open"], ["resolved", "Resolved"], ["all", "All"]].map(([val, label]) => (
+          {[
+            ["open", "Open"],
+            ["resolved", "Resolved"],
+            ["all", "All"],
+          ].map(([val, label]) => (
             <button
               key={val}
               onClick={() => setFilter(val)}
               className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-all ${
                 filter === val
-                  ? dark ? "bg-blue-600 border-blue-600 text-white" : "bg-blue-600 border-blue-600 text-white"
-                  : dark ? "border-gray-700 text-gray-300" : "border-gray-300 text-gray-700"
+                  ? dark
+                    ? "bg-blue-600 border-blue-600 text-white"
+                    : "bg-blue-600 border-blue-600 text-white"
+                  : dark
+                    ? "border-gray-700 text-gray-300"
+                    : "border-gray-300 text-gray-700"
               }`}
             >
               {label}
@@ -4790,49 +4867,75 @@ function AdminBugReportsPage({ ctx }) {
       ) : filtered.length === 0 ? (
         <div className={`border rounded-2xl p-12 text-center ${card}`}>
           <div className="text-5xl mb-3">✅</div>
-          <div className="font-bold mb-1">No {filter === "open" ? "open " : ""}bug reports</div>
-          <div className={`text-sm ${dark ? "text-gray-500" : "text-gray-400"}`}>
+          <div className="font-bold mb-1">
+            No {filter === "open" ? "open " : ""}bug reports
+          </div>
+          <div
+            className={`text-sm ${dark ? "text-gray-500" : "text-gray-400"}`}
+          >
             {filter === "open" ? "All clear!" : "Nothing here yet."}
           </div>
         </div>
       ) : (
         <div className="flex flex-col gap-4">
           {filtered.map((report) => (
-            <div key={report.id} className={`border rounded-2xl p-5 ${card} ${report.resolved ? "opacity-60" : ""}`}>
+            <div
+              key={report.id}
+              className={`border rounded-2xl p-5 ${card} ${report.resolved ? "opacity-60" : ""}`}
+            >
               <div className="flex items-start justify-between gap-3 mb-3">
                 <div className="flex flex-wrap gap-2 items-center">
-                  <span className={`text-xs px-2 py-1 rounded-full border font-semibold ${categoryColor(report.category)}`}>
+                  <span
+                    className={`text-xs px-2 py-1 rounded-full border font-semibold ${categoryColor(report.category)}`}
+                  >
                     {report.category}
                   </span>
                   {report.resolved && (
-                    <span className={`text-xs px-2 py-1 rounded-full font-semibold ${dark ? "bg-green-900/30 text-green-400" : "bg-green-50 text-green-700"}`}>
+                    <span
+                      className={`text-xs px-2 py-1 rounded-full font-semibold ${dark ? "bg-green-900/30 text-green-400" : "bg-green-50 text-green-700"}`}
+                    >
                       ✓ Resolved
                     </span>
                   )}
-                  <span className={`text-xs ${dark ? "text-gray-500" : "text-gray-400"}`}>
-                    Page: <span className="font-medium">{report.pageUrl || "—"}</span>
+                  <span
+                    className={`text-xs ${dark ? "text-gray-500" : "text-gray-400"}`}
+                  >
+                    Page:{" "}
+                    <span className="font-medium">{report.pageUrl || "—"}</span>
                   </span>
                 </div>
-                <div className={`text-xs flex-shrink-0 ${dark ? "text-gray-500" : "text-gray-400"}`}>
+                <div
+                  className={`text-xs flex-shrink-0 ${dark ? "text-gray-500" : "text-gray-400"}`}
+                >
                   {new Date(report.createdAt).toLocaleDateString()}
                 </div>
               </div>
 
               {/* Reporter */}
-              <div className={`flex items-center gap-2 mb-3 px-3 py-2 rounded-xl ${dark ? "bg-gray-800" : "bg-gray-50"}`}>
-                <div className={`w-7 h-7 rounded-lg flex items-center justify-center font-bold text-sm flex-shrink-0 ${dark ? "bg-gray-700 text-gray-300" : "bg-gray-200 text-gray-600"}`}>
+              <div
+                className={`flex items-center gap-2 mb-3 px-3 py-2 rounded-xl ${dark ? "bg-gray-800" : "bg-gray-50"}`}
+              >
+                <div
+                  className={`w-7 h-7 rounded-lg flex items-center justify-center font-bold text-sm flex-shrink-0 ${dark ? "bg-gray-700 text-gray-300" : "bg-gray-200 text-gray-600"}`}
+                >
                   {(report.username || "?")[0].toUpperCase()}
                 </div>
                 <div>
-                  <div className="text-sm font-semibold">{report.username || "Anonymous"}</div>
-                  <div className={`text-xs ${dark ? "text-gray-500" : "text-gray-400"}`}>
+                  <div className="text-sm font-semibold">
+                    {report.username || "Anonymous"}
+                  </div>
+                  <div
+                    className={`text-xs ${dark ? "text-gray-500" : "text-gray-400"}`}
+                  >
                     User ID: {report.userId || "—"}
                   </div>
                 </div>
               </div>
 
               {/* Description */}
-              <div className={`text-sm p-3 rounded-xl mb-3 ${dark ? "bg-gray-800 text-gray-300" : "bg-gray-50 text-gray-700"}`}>
+              <div
+                className={`text-sm p-3 rounded-xl mb-3 ${dark ? "bg-gray-800 text-gray-300" : "bg-gray-50 text-gray-700"}`}
+              >
                 {report.description}
               </div>
 
