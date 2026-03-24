@@ -3710,7 +3710,10 @@ function AdminReportsPage({ ctx }) {
   const [editQ, setEditQ] = useState(null);
 
   useEffect(() => {
-    if (!admin) return;
+    if (!admin) {
+      setLoading(false);
+      return;
+    }
     api
       .getReports()
       .then((data) => {
@@ -4769,7 +4772,10 @@ function AdminBugReportsPage({ ctx }) {
   const [filter, setFilter] = useState("open");
 
   useEffect(() => {
-    if (!admin) return;
+    if (!admin) {
+      setLoading(false);
+      return;
+    }
     api
       .getBugReports()
       .then((data) => {
